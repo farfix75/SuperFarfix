@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Le dipendenze pesanti (PyQt6, opencv, playwright) non servono per
+      # questi controlli e su un runner senza schermo richiederebbero minuti.
+      # Qui si verifica che tutto compili e che i test offline passino.
+      - name: Controllo sintassi
+        run: python -m compileall -q .
+
+      - name: Test offline
+        run: python -m unittest discover -s tests -v
+
+      - name: Nessun segreto committato
+        run: |
+          if grep -rIn -E "sk-[A-Za-z0-9]{16,}|AIza[0-9A-Za-z_-]{30,}|BEGIN (RSA |EC )?PRIVATE KEY" \
+               --exclude-dir=.git . ; then
+            echo "::error::Trovata una possibile credenziale nel repository"
+            exit 1
+          fi
+          echo "Nessun segreto trovato."
